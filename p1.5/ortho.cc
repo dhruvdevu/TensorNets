@@ -4,6 +4,26 @@
 #include <iomanip>
 using namespace itensor;
 
+ITensor makeOtherIndicesIdentity1(std::vector<ITensor> I, int j) {
+    ITensor ret = ITensor(1.0);
+    for(int i = 0; i < I.size(); i++) {
+        if (i != j) {
+            ret = ret*I[i];
+        }
+    }
+    return ret;
+}
+
+ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
+    ITensor ret = ITensor(1.0);
+    for(int i =0; i < I.size(); i++) {
+        if (i!=j && i!=j+1) {
+            ret = ret*I[i];
+        }
+    }
+    return ret;
+}
+
 int main() {
     int N = 10;
     int steps = 10;
@@ -17,16 +37,40 @@ int main() {
     OptSet opts;
     opts.add("Cutoff",cutoff);
     opts.add("Maxm",maxm);
+
+    //DMRG
+    auto hMPO = AutoMPO(sites);
+
+    for (int j = 1; j < N; j++) {
+    		hMPO += -J*0.5,"S+",j;
+    		hMPO += -J*0.5,"S-",j;
+    		hMPO += -h,"Sz",j,"Sz",j+1;
+    }
+
+    hMPO += -J*0.5, "S+", N;
+    hMPO += -J*0.5, "S-", N;
+    //HMPO is to calculate the energy conveniently
+    auto HMPO = MPO(hMPO);
+    auto dmrg_psi = MPS(sites)
+    auto sweeps = Sweeps(5);
+    sweeps.maxm() = 10,40,100,200,200;
+    sweeps.cutoff() = 1E-8;
+
+    auto dmrg_energy = dmrg(dmrg_psi,HMPO,sweeps,{"Quiet",true});
+    //                  ^ psi passed by reference,
+    //                    can measure properties afterwards
+
+    printfln("Ground state energy by dmrg = %.20f",dmrg_energy);
     //Create ITensor
     std::vector<ITensor> mps(N);
     Index prevRight = Index("virtual1", Link);
-    mps[0] = ITensor(Index("physical1", 2, Site), prevRight);
+    mps[0] = ITensor(sites(1), prevRight);
     randomize(mps[0]);
-    for (int i = 2; i < N - 1; i++) {
+    for (int i = 1; i < N - 1; i++) {
         //Max bond dimension of 15
         Index left = Index("virtual2", 15, Link);
         //Index physical = Index("physical", 2, Site);
-        mps[i] = ITensor(prevRight, sites(i), left);
+        mps[i] = ITensor(prevRight, sites(i + 1), left);
         prevRight = left;
         randomize(mps[i]);
     }
@@ -44,11 +88,11 @@ int main() {
     //TO DO: Implement TEBD
 
     for (int st = 0; st < steps; st++) {
-        // Odd-even pairs
+        // Odd-even pairs (odd site first index)
         for (int i = 0; i < N - 1; i+=2) {
-        	ITensor hEven = -h*ITensor(sites.op("Sz", i))*ITensor(sites.op("Sz", i + 1))
-        	- J*0.5*ITensor(sites.op("S+", i))*ITensor(sites.op("Id", i + 1))
-        	- J*0.5*ITensor(sites.op("S-", i))*ITensor(sites.op("Id", i + 1));
+        	ITensor hEven = -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))
+        	- J*0.5*ITensor(sites.op("S+", i + 1))*ITensor(sites.op("Id", i + 2))
+        	- J*0.5*ITensor(sites.op("S-", i + 1))*ITensor(sites.op("Id", i + 2));
         	auto expTemp = expHermitian(hEven, -T);
         	//the mps should already have its orthocenter at i
         	auto p1 = mps[i];
@@ -76,10 +120,52 @@ int main() {
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
 
         //Even - odd pairs
-        int start = (N % 2 == 0) ? N-1 : N-2;
+        int start = (N % 2 == 0) ? N-2 : N-1;
+        for (int j = start; i > 1; i-=2) {
+        	ITensor hOdd = -h*ITensor(sites.op("Sz", i))*ITensor(sites.op("Sz", i + 1))
+        	- J*0.5*ITensor(sites.op("S+", i))*ITensor(sites.op("Id", i + 1))
+        	- J*0.5*ITensor(sites.op("S-", i))*ITensor(sites.op("Id", i + 1));
+        	auto expTemp = expHermitian(hOdd, -T);
+        	//the mps should already have its orthocenter at i
+        	auto p1 = mps[i - 1];
+        	auto p2 =mps[i];
+        	auto p = p1*p2;
+        	p = expTemp*p;
+        	//p /= norm(p);
+        	p = p.noprime();
+        	auto V = mps[i];
+        	ITensor D, U;
+        	svd(p, U, D, V, opts);
+            mps[i] = V;
+            mps[i - 1] = U*D;
+            //TO DO: How to keep it normalized?
+            //Set the orthocenter to be the next i value
+            V = mps[i - 1];
+            svd(mps[i - 1], U, D, V, opts);
+            mps[i - 2] = mps[i - 1]*U*D;
+            mps[i - 1] = V;
+        }
+        //orthogonality center is now the first index (index0, site1)
     }
+
+//Calculate energy
+ITensor psi = ITensor(1.0);
+for (int i = 0; i < N; i++) {
+    psi = psi*mps[i];
 }
+std::vector<ITensor> Id(N);
+for(int i = 0; i < N; i++) {
+    Id[i] = ITensor(sites.op("Id", i + 1));
+}
+ITensor H;
+for (int i = 0; i < N; i++) {
+    H += -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*makeOtherIndicesIdentity2(Id, i)
+    - J*0.5*ITensor(sites.op("S+", i + 1))*makeOtherIndicesIdentity1(Id, i)
+    - J*0.5*ITensor(sites.op("S-", i + 1))*makeOtherIndicesIdentity1(Id, i);
+}
+H += -J*0.5*ITensor(sites.op("S+", N))*makeOtherIndicesIdentity1(N - 1) - J*0.5*ITensor(sites.op("S-", N))*makeOtherIndicesIdentity1(N - 1);
 
 
-
+Real energy = (dag(prime(psi))*H*psi).real();
+printfln("\nGround state energy by TEBD= %.10f",energy);
 }
