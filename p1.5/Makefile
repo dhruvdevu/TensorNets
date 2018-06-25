@@ -1,4 +1,4 @@
-# 1. Put this file in the same folder as your 'driver' code 
+# 1. Put this file in the same folder as your 'driver' code
 #    (the code containing the 'main' function).
 
 # 2. Edit LIBRARY_DIR to point at the location of your ITensor Library
@@ -9,7 +9,7 @@ LIBRARY_DIR=/mnt/c/Users/Dhruv/Research/Whaley/itensor
 #    set APP to 'myappname'. Running 'make' will compile the app.
 #    Running 'make debug' will make a program called 'myappname-g'
 #    which includes debugging symbols and can be used in gdb (Gnu debugger);
-APP=tebd
+APP=ortho
 
 
 # 4. Add any headers your program depends on here. The make program
@@ -59,4 +59,3 @@ clean:
 
 mkdebugdir:
 	mkdir -p .debug_objs
-
