@@ -27,8 +27,8 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
 }
 
 int main() {
-    int N = 10;
-    int steps = 10;
+    int N = 5;
+    int steps = 3;
     int maxm = 15;
     int cutoff = 0;
     //Coupling constants
@@ -68,7 +68,6 @@ int main() {
     mps[0] = ITensor(sites(1), virtualIndices[0]);
     randomize(mps[0]);
     //PrintData(mps[0]);
-    Index test = sites(1);
     for (int i = 1; i < N - 1; i++) {
         //Max bond dimension of 15
         virtualIndices[i] = Index("virtual2", maxm, Link);
@@ -81,10 +80,11 @@ int main() {
     //PrintData(mps[N-1]);
     printfln("Orthogonalizing:");
     //Canonical Form - initialize so that orthogonality center is site 1
-    ITensor V = ITensor(sites(N));
+    ITensor V, D, U(commonIndex(mps[N-1], mps[N-2]));
+    /**ITensor V = ITensor(sites(N));
     //PrintData(V);
     ITensor D;
-    ITensor U = ITensor(virtualIndices[N - 2]);
+    ITensor U = ITensor(virtualIndices[N - 2]); **/
     svd(mps[N - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
     mps[N - 1] = V;
     mps[N - 2] = mps[N - 2]*U*D;
@@ -92,10 +92,10 @@ int main() {
     printfln("Loop:");
     for (int i = N - 2; i > 1; i--) {
         //ITensor V = ITensor(sites(i + 1), virtualIndices[i]); //So V gets same indices
-        ITensor D, V, U(virtualIndices[i - 1]);
+        ITensor D, V, U(commonIndex(mps[i], mps[i-1]));
         svd(mps[i], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
         mps[i] = V;
-        mps[i - 1] = mps[i - 2]*U*D;
+        mps[i - 1] = mps[i - 1]*U*D;
         mps[i - 1] /= norm(mps[i - 1]);
     }
     for (int j = 0; j < N; j++) {
@@ -121,20 +121,18 @@ int main() {
         	//p /= norm(p);
         	p = p.noprime();
             printfln("%d", i);
-            ITensor U = ITensor(sites(i + 1), virtualIndices[i]);
+            ITensor U = ITensor(sites(i + 1), commonIndex(mps[i], mps[i+1]), commonIndex(mps[i], mps[i-1]));//virtualIndices[i]);
         	ITensor D, V;
             printfln("svd:");
 
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            printfln("success");
             mps[i] = U;
             mps[i + 1] = D*V;
             mps[i+1] /= norm(mps[i+1]);
-            printfln("next");
             //Set the orthocenter to be the next i value
             if (i < N - 2) {
                 ITensor D, V;
-                U = ITensor(sites(i + 2), virtualIndices[i + 1]);//mps[i + 1];
+                U = ITensor(sites(i + 2), commonIndex(mps[i+1], mps[i + 2]));//virtualIndices[i + 1]);
                 svd(mps[i+1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
                 mps[i + 1] = U;
                 mps[i + 2] = D*V*mps[i + 2];
@@ -153,6 +151,7 @@ int main() {
         	- J*0.5*ITensor(sites.op("S+", i))*ITensor(sites.op("Id", i + 1))
         	- J*0.5*ITensor(sites.op("S-", i))*ITensor(sites.op("Id", i + 1));
         	auto expTemp = expHermitian(hOdd, -T);
+            printfln("%d", i);
         	//the mps should already have its orthocenter at i
         	auto p1 = mps[i - 1];
         	auto p2 =mps[i];
@@ -160,16 +159,16 @@ int main() {
         	p = expTemp*p;
         	//p /= norm(p);
         	p = p.noprime();
-        	ITensor D, V, U(sites(i), virtualIndices[i - 1]);
+        	ITensor D, V, U(sites(i), commonIndex(mps[i-1], mps[i-2]), commonIndex(mps[i], mps[i-1]));//virtualIndices[i - 1]);
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = V;
             mps[i - 1] = U*D;
             mps[i - 1] /= norm(mps[i - 1]);
             //TO DO: How to keep it normalized?
             //Set the orthocenter to be the next i value
-            U = ITensor(virtualIndices[i - 2]);
+            U = ITensor(commonIndex(mps[i-1], mps[i-2]), sites(i));//virtualIndices[i - 2]);
             svd(mps[i - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[i - 2] = mps[i - 1]*U*D;
+            mps[i - 2] = mps[i - 2]*U*D;
             mps[i - 2] /= norm(mps[i - 2]);
             mps[i - 1] = V;
         }
@@ -177,7 +176,7 @@ int main() {
     }
 
 //Check normalized
-printfln("\n Normalize check=%.10f", norm(mps[0]));
+printfln("\nNormalize check=%.10f", norm(mps[0]));
 //Calculate energy
 ITensor psi = ITensor(1.0);
 for (int i = 0; i < N; i++) {
@@ -188,13 +187,14 @@ for(int i = 0; i < N; i++) {
     Id[i] = ITensor(sites.op("Id", i + 1));
 }
 ITensor H;
-for (int i = 0; i < N; i++) {
+printfln("Constructing H");
+for (int i = 0; i < N-1; i++) {
     H += -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*makeOtherIndicesIdentity2(Id, i)
     - J*0.5*ITensor(sites.op("S+", i + 1))*makeOtherIndicesIdentity1(Id, i)
     - J*0.5*ITensor(sites.op("S-", i + 1))*makeOtherIndicesIdentity1(Id, i);
 }
 H += -J*0.5*ITensor(sites.op("S+", N))*makeOtherIndicesIdentity1(Id, N - 1) - J*0.5*ITensor(sites.op("S-", N))*makeOtherIndicesIdentity1(Id, N - 1);
-
+printfln("Calculating energy");
 
 Real energy = (dag(prime(psi))*H*psi).real();
 printfln("\nGround state energy by TEBD= %.10f",energy);
