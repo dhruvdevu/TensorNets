@@ -65,8 +65,10 @@ int main() {
     std::vector<ITensor> mps(N);
     std::vector<Index> virtualIndices(N - 1);
     virtualIndices[0] = Index("virtual1", maxm, Link);
-    mps[0] = ITensor(sites(1), prevRight);
+    mps[0] = ITensor(sites(1), virtualIndices[0]);
     randomize(mps[0]);
+    //PrintData(mps[0]);
+    Index test = sites(1);
     for (int i = 1; i < N - 1; i++) {
         //Max bond dimension of 15
         virtualIndices[i] = Index("virtual2", maxm, Link);
@@ -74,17 +76,30 @@ int main() {
         mps[i] = ITensor(virtualIndices[i - 1], sites(i + 1), virtualIndices[i]);
         randomize(mps[i]);
     }
-    mps[N - 1] = ITensor(virtualIndices[N - 2], Index("physical", 2, Site));
+    mps[N - 1] = ITensor(virtualIndices[N - 2], sites(N));
     randomize(mps[N-1]);
+    //PrintData(mps[N-1]);
     printfln("Orthogonalizing:");
     //Canonical Form - initialize so that orthogonality center is site 1
-    for (int i = N - 1; i > 1; i--) {
-        ITensor V = mps[i]; //So V gets same indices
-        ITensor D, U;
+    ITensor V = ITensor(sites(N));
+    //PrintData(V);
+    ITensor D;
+    ITensor U = ITensor(virtualIndices[N - 2]);
+    svd(mps[N - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+    mps[N - 1] = V;
+    mps[N - 2] = mps[N - 2]*U*D;
+    mps[N - 2] /= norm(mps[N - 2]);
+    printfln("Loop:");
+    for (int i = N - 2; i > 1; i--) {
+        //ITensor V = ITensor(sites(i + 1), virtualIndices[i]); //So V gets same indices
+        ITensor D, V, U(virtualIndices[i - 1]);
         svd(mps[i], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
         mps[i] = V;
-        mps[i - 1] = mps[N-2]*U*D;
+        mps[i - 1] = mps[i - 2]*U*D;
         mps[i - 1] /= norm(mps[i - 1]);
+    }
+    for (int j = 0; j < N; j++) {
+        printfln("j=%d, rank=%d", j, rank(mps[j]));
     }
     printfln("TEBD:");
 
@@ -98,29 +113,39 @@ int main() {
         	//the mps should already have its orthocenter at i
         	auto p1 = mps[i];
         	auto p2 = mps[i + 1];
+            //PrintData(p1);
+            //PrintData(p2);
         	auto p = p1*p2;
+            //PrintData(p);
         	p = expTemp*p;
         	//p /= norm(p);
         	p = p.noprime();
-        	auto U = mps[i];
+            printfln("%d", i);
+            ITensor U = ITensor(sites(i + 1), virtualIndices[i]);
         	ITensor D, V;
+            printfln("svd:");
+
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+            printfln("success");
             mps[i] = U;
             mps[i + 1] = D*V;
             mps[i+1] /= norm(mps[i+1]);
+            printfln("next");
             //Set the orthocenter to be the next i value
             if (i < N - 2) {
-                U = mps[i + 1];
+                ITensor D, V;
+                U = ITensor(sites(i + 2), virtualIndices[i + 1]);//mps[i + 1];
                 svd(mps[i+1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
                 mps[i + 1] = U;
                 mps[i + 2] = D*V*mps[i + 2];
                 mps[i + 2] /= norm(mps[i + 1]);
             }
         }
+        printfln("Last:");
         //If N is odd, then the orthocenter is N-1, and if N is even, it is N-2 (both of these cases contain N - 1)
         ITensor hlast = -J*0.5*ITensor(sites.op("S+", N)) - J*0.5*ITensor(sites.op("S-", N));
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
-
+        printfln("odd:");
         //Even - odd pairs
         int start = (N % 2 == 0) ? N-2 : N-1;
         for (int i = start; i > 1; i-=2) {
@@ -135,15 +160,14 @@ int main() {
         	p = expTemp*p;
         	//p /= norm(p);
         	p = p.noprime();
-        	auto V = mps[i];
-        	ITensor D, U;
+        	ITensor D, V, U(sites(i), virtualIndices[i - 1]);
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = V;
             mps[i - 1] = U*D;
             mps[i - 1] /= norm(mps[i - 1]);
             //TO DO: How to keep it normalized?
             //Set the orthocenter to be the next i value
-            V = mps[i - 1];
+            U = ITensor(virtualIndices[i - 2]);
             svd(mps[i - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i - 2] = mps[i - 1]*U*D;
             mps[i - 2] /= norm(mps[i - 2]);
