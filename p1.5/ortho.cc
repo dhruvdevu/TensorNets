@@ -27,9 +27,9 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
 }
 
 int main() {
-    int N = 5;
-    int steps = 3;
-    int maxm = 15;
+    int N = 10;
+    int steps = 1;
+    int maxm = 5;
     int cutoff = 0;
     //Coupling constants
     float J = 1.0;
@@ -121,7 +121,12 @@ int main() {
         	//p /= norm(p);
         	p = p.noprime();
             printfln("%d", i);
-            ITensor U = ITensor(sites(i + 1), commonIndex(mps[i], mps[i+1]), commonIndex(mps[i], mps[i-1]));//virtualIndices[i]);
+            ITensor U;
+            if (i > 0) {
+                U = ITensor(sites(i + 1),  commonIndex(mps[i], mps[i-1]));
+            } else {
+                U = ITensor(sites(i + 1));//virtualIndices[i]);
+            }
         	ITensor D, V;
             printfln("svd:");
 
@@ -159,7 +164,7 @@ int main() {
         	p = expTemp*p;
         	//p /= norm(p);
         	p = p.noprime();
-        	ITensor D, V, U(sites(i), commonIndex(mps[i-1], mps[i-2]), commonIndex(mps[i], mps[i-1]));//virtualIndices[i - 1]);
+        	ITensor D, V, U(sites(i), commonIndex(mps[i-1], mps[i-2]));//, commonIndex(mps[i], mps[i-1]));//virtualIndices[i - 1]);
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = V;
             mps[i - 1] = U*D;
@@ -178,6 +183,7 @@ int main() {
 //Check normalized
 printfln("\nNormalize check=%.10f", norm(mps[0]));
 //Calculate energy
+
 ITensor psi = ITensor(1.0);
 for (int i = 0; i < N; i++) {
     psi = psi*mps[i];
@@ -187,8 +193,7 @@ for(int i = 0; i < N; i++) {
     Id[i] = ITensor(sites.op("Id", i + 1));
 }
 ITensor H;
-printfln("Constructing H");
-for (int i = 0; i < N-1; i++) {
+printfln("Constructing H");for (int i = 0; i < N-1; i++) {
     H += -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*makeOtherIndicesIdentity2(Id, i)
     - J*0.5*ITensor(sites.op("S+", i + 1))*makeOtherIndicesIdentity1(Id, i)
     - J*0.5*ITensor(sites.op("S-", i + 1))*makeOtherIndicesIdentity1(Id, i);
