@@ -28,8 +28,8 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
 
 int main() {
     int N = 10;
-    int steps = 1;
-    int maxm = 5;
+    int steps = 10;
+    int maxm = 15;
     int cutoff = 0;
     //Coupling constants
     float J = 1.0;
@@ -137,17 +137,18 @@ int main() {
             //Set the orthocenter to be the next i value
             if (i < N - 2) {
                 ITensor D, V;
-                U = ITensor(sites(i + 2), commonIndex(mps[i+1], mps[i + 2]));//virtualIndices[i + 1]);
+                U = ITensor(sites(i + 2), commonIndex(mps[i+1], mps[i]));//virtualIndices[i + 1]);
                 svd(mps[i+1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
                 mps[i + 1] = U;
                 mps[i + 2] = D*V*mps[i + 2];
-                mps[i + 2] /= norm(mps[i + 1]);
+                mps[i + 2] /= norm(mps[i + 2]);
             }
         }
         printfln("Last:");
         //If N is odd, then the orthocenter is N-1, and if N is even, it is N-2 (both of these cases contain N - 1)
         ITensor hlast = -J*0.5*ITensor(sites.op("S+", N)) - J*0.5*ITensor(sites.op("S-", N));
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
+        mps[N - 1] /= norm(mps[N -1]);
         printfln("odd:");
         //Even - odd pairs
         int start = (N % 2 == 0) ? N-2 : N-1;
@@ -171,7 +172,7 @@ int main() {
             mps[i - 1] /= norm(mps[i - 1]);
             //TO DO: How to keep it normalized?
             //Set the orthocenter to be the next i value
-            U = ITensor(commonIndex(mps[i-1], mps[i-2]), sites(i));//virtualIndices[i - 2]);
+            U = ITensor(commonIndex(mps[i-1], mps[i - 2]));//virtualIndices[i - 2]);
             svd(mps[i - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i - 2] = mps[i - 2]*U*D;
             mps[i - 2] /= norm(mps[i - 2]);
