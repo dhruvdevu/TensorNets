@@ -28,9 +28,10 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
 
 void normalizeCheck(std::vector<ITensor> mps, int N) {
     int b = 0;
+    Real comp = norm(ITensor(1.0));
     for (int i = 0; i < N; i++) {
-        if (norm(mps[i]) != 1) {
-            println(i);
+        if (norm(mps[i]) != comp) {
+            printfln("%f, %f", i, norm(mps[i]));
             b++;
         }
     }
@@ -86,9 +87,7 @@ int main() {
         //Index physical = Index("physical", 2, Site);
         mps[i] = ITensor(virtualIndices[i - 1], sites(i + 1), virtualIndices[i]);
         randomize(mps[i]);
-        auto n = norm(mps[i]);
-        mps[i] /= n;
-        printfln("Norm, %.10f", norm(mps[i]));
+        mps[i] /= norm(mps[i]);
     }
     mps[N - 1] = ITensor(virtualIndices[N - 2], sites(N));
     randomize(mps[N-1]);
@@ -146,6 +145,7 @@ int main() {
         	ITensor D, V;
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = U;
+            mps[i] /= norm(mps[i]);
             mps[i + 1] = D*V;
             mps[i+1] /= norm(mps[i+1]);
             //Set the orthocenter to be the next i value
@@ -154,6 +154,7 @@ int main() {
                 U = ITensor(sites(i + 2), commonIndex(mps[i+1], mps[i]));//virtualIndices[i + 1]);
                 svd(mps[i+1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
                 mps[i + 1] = U;
+                mps[i + 1] /= norm(mps[i + 1]);
                 mps[i + 2] = D*V*mps[i + 2];
                 mps[i + 2] /= norm(mps[i + 2]);
             }
@@ -179,6 +180,7 @@ int main() {
         	ITensor D, V, U(sites(i), commonIndex(mps[i-1], mps[i-2]));//, commonIndex(mps[i], mps[i-1]));//virtualIndices[i - 1]);
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = V;
+            //mps[i] /= norm(mps[i]);
             mps[i - 1] = U*D;
             mps[i - 1] /= norm(mps[i - 1]);
             //TO DO: How to keep it normalized?
@@ -188,6 +190,7 @@ int main() {
             mps[i - 2] = mps[i - 2]*U*D;
             mps[i - 2] /= norm(mps[i - 2]);
             mps[i - 1] = V;
+            //mps[i - 1] /= norm(mps[i - 1]);
         }
         //orthogonality center is now the first index (index0, site1)
     }
