@@ -1,0 +1,10 @@
+Things to check:
+Do the energy in a more efficient way
+(but this won't necessarily change the number that comes out)
+
+Next suggestion - 
+try more steps - if you segfault then there may be some other issue
+does on of them have the wrong number of things? Anything missing site index?
+Write a helper that calculates the norm manucally, rather than relying on the orthogonality property
+change T and steps
+set dmrg maxm

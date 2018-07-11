@@ -26,15 +26,26 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
     return ret;
 }
 
+void normalizeCheck(std::vector<ITensor> mps, int N) {
+    int b = 0;
+    for (int i = 0; i < N; i++) {
+        if (norm(mps[i]) != 1) {
+            println(i);
+            b++;
+        }
+    }
+    printfln("\nNormalize check=%.10f", b);
+}
+
 int main() {
     int N = 10;
-    int steps = 10;
+    int steps = 1000;
     int maxm = 15;
     int cutoff = 0;
     //Coupling constants
     float J = 1.0;
     float h = 1.0;
-    Real T = 0.001;
+    Real T = 0.01;
     SiteSet sites = SpinHalf(N);
 
 
@@ -67,6 +78,7 @@ int main() {
     virtualIndices[0] = Index("virtual1", maxm, Link);
     mps[0] = ITensor(sites(1), virtualIndices[0]);
     randomize(mps[0]);
+    mps[0] /= norm(mps[0]);
     //PrintData(mps[0]);
     for (int i = 1; i < N - 1; i++) {
         //Max bond dimension of 15
@@ -74,9 +86,14 @@ int main() {
         //Index physical = Index("physical", 2, Site);
         mps[i] = ITensor(virtualIndices[i - 1], sites(i + 1), virtualIndices[i]);
         randomize(mps[i]);
+        auto n = norm(mps[i]);
+        mps[i] /= n;
+        printfln("Norm, %.10f", norm(mps[i]));
     }
     mps[N - 1] = ITensor(virtualIndices[N - 2], sites(N));
     randomize(mps[N-1]);
+    mps[N-1] /= norm(mps[N-1]);
+    normalizeCheck(mps, N);
     //PrintData(mps[N-1]);
     printfln("Orthogonalizing:");
     //Canonical Form - initialize so that orthogonality center is site 1
@@ -120,7 +137,6 @@ int main() {
         	p = expTemp*p;
         	//p /= norm(p);
         	p = p.noprime();
-            printfln("%d", i);
             ITensor U;
             if (i > 0) {
                 U = ITensor(sites(i + 1),  commonIndex(mps[i], mps[i-1]));
@@ -128,8 +144,6 @@ int main() {
                 U = ITensor(sites(i + 1));//virtualIndices[i]);
             }
         	ITensor D, V;
-            printfln("svd:");
-
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = U;
             mps[i + 1] = D*V;
@@ -144,12 +158,10 @@ int main() {
                 mps[i + 2] /= norm(mps[i + 2]);
             }
         }
-        printfln("Last:");
         //If N is odd, then the orthocenter is N-1, and if N is even, it is N-2 (both of these cases contain N - 1)
         ITensor hlast = -J*0.5*ITensor(sites.op("S+", N)) - J*0.5*ITensor(sites.op("S-", N));
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
         mps[N - 1] /= norm(mps[N -1]);
-        printfln("odd:");
         //Even - odd pairs
         int start = (N % 2 == 0) ? N-2 : N-1;
         for (int i = start; i > 1; i-=2) {
@@ -157,7 +169,6 @@ int main() {
         	- J*0.5*ITensor(sites.op("S+", i))*ITensor(sites.op("Id", i + 1))
         	- J*0.5*ITensor(sites.op("S-", i))*ITensor(sites.op("Id", i + 1));
         	auto expTemp = expHermitian(hOdd, -T);
-            printfln("%d", i);
         	//the mps should already have its orthocenter at i
         	auto p1 = mps[i - 1];
         	auto p2 =mps[i];
@@ -182,7 +193,7 @@ int main() {
     }
 
 //Check normalized
-printfln("\nNormalize check=%.10f", norm(mps[0]));
+normalizeCheck(mps, N);
 //Calculate energy
 
 ITensor psi = ITensor(1.0);
@@ -202,6 +213,9 @@ printfln("Constructing H");for (int i = 0; i < N-1; i++) {
 H += -J*0.5*ITensor(sites.op("S+", N))*makeOtherIndicesIdentity1(Id, N - 1) - J*0.5*ITensor(sites.op("S-", N))*makeOtherIndicesIdentity1(Id, N - 1);
 printfln("Calculating energy");
 
+for (int i = 0; i < N; i++) {
+
+}
 Real energy = (dag(prime(psi))*H*psi).real();
 printfln("\nGround state energy by TEBD= %.10f",energy);
 }
