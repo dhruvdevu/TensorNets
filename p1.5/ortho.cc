@@ -26,27 +26,33 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
     return ret;
 }
 
+Real getEnergy(std::vector<ITensor> mps) {
+  //TODO(Dhruv): Write this method to efficiently calculate the energy.
+  return 0.0
+}
+
 void normalizeCheck(std::vector<ITensor> mps, int N) {
-    int b = 0;
-    Real comp = norm(ITensor(1.0));
-    for (int i = 0; i < N; i++) {
-        if (norm(mps[i]) != comp) {
-            printfln("%f, %f", i, norm(mps[i]));
-            b++;
-        }
-    }
-    printfln("\nNormalize check=%.10f", b);
+  // TODO(Dhruv): Rewrite this method to check the normalization of the state, not the individual tensors.
+    // int b = 0;
+    // Real comp = norm(ITensor(1.0));
+    // for (int i = 0; i < N; i++) {
+    //     if (norm(mps[i]) != comp) {
+    //         printfln("%d, %f", i, norm(mps[i]));
+    //         b++;
+    //     }
+    // }
+    // printfln("\nNormalize check=%.10f", b);
 }
 
 int main() {
     int N = 10;
     int steps = 1000;
-    int maxm = 15;
-    int cutoff = 0;
+    int maxm = 10;
+    Real cutoff = 0.0;
     //Coupling constants
     float J = 1.0;
     float h = 1.0;
-    Real T = 0.01;
+    Real T = 0.1;
     SiteSet sites = SpinHalf(N);
 
 
@@ -106,7 +112,7 @@ int main() {
     mps[N - 2] = mps[N - 2]*U*D;
     mps[N - 2] /= norm(mps[N - 2]);
     printfln("Loop:");
-    for (int i = N - 2; i > 1; i--) {
+    for (int i = N - 2; i >= 1; i--) {
         //ITensor V = ITensor(sites(i + 1), virtualIndices[i]); //So V gets same indices
         ITensor D, V, U(commonIndex(mps[i], mps[i-1]));
         svd(mps[i], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
@@ -120,6 +126,7 @@ int main() {
     printfln("TEBD:");
 
     for (int st = 0; st < steps; st++) {
+      // Print(st);
         // Odd-even pairs (odd site first index)
         for (int i = 0; i < N - 1; i+=2) {
         	ITensor hEven = -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))
@@ -145,7 +152,7 @@ int main() {
         	ITensor D, V;
         	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = U;
-            mps[i] /= norm(mps[i]);
+            // mps[i] /= norm(mps[i]);
             mps[i + 1] = D*V;
             mps[i+1] /= norm(mps[i+1]);
             //Set the orthocenter to be the next i value
@@ -154,7 +161,7 @@ int main() {
                 U = ITensor(sites(i + 2), commonIndex(mps[i+1], mps[i]));//virtualIndices[i + 1]);
                 svd(mps[i+1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
                 mps[i + 1] = U;
-                mps[i + 1] /= norm(mps[i + 1]);
+                // mps[i + 1] /= norm(mps[i + 1]);
                 mps[i + 2] = D*V*mps[i + 2];
                 mps[i + 2] /= norm(mps[i + 2]);
             }
@@ -163,6 +170,9 @@ int main() {
         ITensor hlast = -J*0.5*ITensor(sites.op("S+", N)) - J*0.5*ITensor(sites.op("S-", N));
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
         mps[N - 1] /= norm(mps[N -1]);
+
+        // TODO(Dhruv): Make sure that when N is even that the ortho center is properly pushed over from N-1 (where it ends up) to N-2.
+
         //Even - odd pairs
         int start = (N % 2 == 0) ? N-2 : N-1;
         for (int i = start; i > 1; i-=2) {
@@ -201,6 +211,7 @@ normalizeCheck(mps, N);
 
 ITensor psi = ITensor(1.0);
 for (int i = 0; i < N; i++) {
+  Print(mps[i]);
     psi = psi*mps[i];
 }
 std::vector<ITensor> Id(N);
@@ -221,4 +232,5 @@ for (int i = 0; i < N; i++) {
 }
 Real energy = (dag(prime(psi))*H*psi).real();
 printfln("\nGround state energy by TEBD= %.10f",energy);
+printfln("Ground state energy by dmrg = %.20f",dmrg_energy);
 }
