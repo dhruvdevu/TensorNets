@@ -28,31 +28,28 @@ ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
 
 Real getEnergy(std::vector<ITensor> mps) {
   //TODO(Dhruv): Write this method to efficiently calculate the energy.
-  return 0.0
+  return 0.0;
 }
 
 void normalizeCheck(std::vector<ITensor> mps, int N) {
-  // TODO(Dhruv): Rewrite this method to check the normalization of the state, not the individual tensors.
-    // int b = 0;
-    // Real comp = norm(ITensor(1.0));
-    // for (int i = 0; i < N; i++) {
-    //     if (norm(mps[i]) != comp) {
-    //         printfln("%d, %f", i, norm(mps[i]));
-    //         b++;
-    //     }
-    // }
-    // printfln("\nNormalize check=%.10f", b);
+    ITensor psi = ITensor(1.0);
+    for (int i = 0; i < N; i++) {
+        //Print(mps[i]);
+        psi = psi*mps[i];
+    }
+    Real n = norm(psi);//(dag(prime(psi))*psi).real();
+    printfln("\nNormalize check = %.10f",n);
 }
 
 int main() {
     int N = 10;
-    int steps = 1000;
+    int steps = 10000;
     int maxm = 10;
     Real cutoff = 0.0;
     //Coupling constants
     float J = 1.0;
     float h = 1.0;
-    Real T = 0.1;
+    Real T = 0.001;
     SiteSet sites = SpinHalf(N);
 
 
@@ -98,7 +95,7 @@ int main() {
     mps[N - 1] = ITensor(virtualIndices[N - 2], sites(N));
     randomize(mps[N-1]);
     mps[N-1] /= norm(mps[N-1]);
-    normalizeCheck(mps, N);
+    //normalizeCheck(mps, N);
     //PrintData(mps[N-1]);
     printfln("Orthogonalizing:");
     //Canonical Form - initialize so that orthogonality center is site 1
@@ -126,7 +123,6 @@ int main() {
     printfln("TEBD:");
 
     for (int st = 0; st < steps; st++) {
-      // Print(st);
         // Odd-even pairs (odd site first index)
         for (int i = 0; i < N - 1; i+=2) {
         	ITensor hEven = -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))
@@ -171,8 +167,15 @@ int main() {
         mps[N - 1] = (mps[N-1]*expHermitian(hlast, -T)).noprime();
         mps[N - 1] /= norm(mps[N -1]);
 
-        // TODO(Dhruv): Make sure that when N is even that the ortho center is properly pushed over from N-1 (where it ends up) to N-2.
-
+        // Make sure that when N is even that the ortho center is properly pushed over from N-1 (where it ends up) to N-2.
+        if (N % 2 == 0) {
+            ITensor U = ITensor(commonIndex(mps[N-1], mps[N-2]));
+            ITensor D, V;
+            svd(mps[N - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+            mps[N - 1] = V;
+            mps[N - 2] = mps[N - 2]*U*D;
+            mps[N - 2] /= norm(mps[N - 2]);
+        }
         //Even - odd pairs
         int start = (N % 2 == 0) ? N-2 : N-1;
         for (int i = start; i > 1; i-=2) {
@@ -211,7 +214,7 @@ normalizeCheck(mps, N);
 
 ITensor psi = ITensor(1.0);
 for (int i = 0; i < N; i++) {
-  Print(mps[i]);
+    //Print(mps[i]);
     psi = psi*mps[i];
 }
 std::vector<ITensor> Id(N);
