@@ -15,26 +15,6 @@ float h = 1.0;
 Real T = 0.01;
 SiteSet sites = SpinHalf(N);
 
-ITensor makeOtherIndicesIdentity1(std::vector<ITensor> I, int j) {
-    ITensor ret = ITensor(1.0);
-    for(int i = 0; i < I.size(); i++) {
-        if (i != j) {
-            ret = ret*I[i];
-        }
-    }
-    return ret;
-}
-
-ITensor makeOtherIndicesIdentity2(std::vector<ITensor> I, int j) {
-    ITensor ret = ITensor(1.0);
-    for(int i = 0; i < I.size(); i++) {
-        if (i!=j && i!=j+1) {
-            ret = ret*I[i];
-        }
-    }
-    return ret;
-}
-
 void normalizeCheck(std::vector<ITensor> mps, int N) {
     ITensor psi = ITensor(1.0);
     for (int i = 0; i < N; i++) {
@@ -233,26 +213,8 @@ int main() {
 normalizeCheck(mps, N);
 //Calculate energy
 
-/*ITensor psi = ITensor(1.0);
-for (int i = 0; i < N; i++) {
-    //Print(mps[i]);
-    psi = psi*mps[i];
-}
-std::vector<ITensor> Id(N);
-for(int i = 0; i < N; i++) {
-    Id[i] = ITensor(sites.op("Id", i + 1));
-}
-ITensor H;
-printfln("Constructing H");for (int i = 0; i < N-1; i++) {
-    H += -h*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*makeOtherIndicesIdentity2(Id, i)
-    - J*0.5*ITensor(sites.op("S+", i + 1))*makeOtherIndicesIdentity1(Id, i)
-    - J*0.5*ITensor(sites.op("S-", i + 1))*makeOtherIndicesIdentity1(Id, i);
-}
-H += -J*0.5*ITensor(sites.op("S+", N))*makeOtherIndicesIdentity1(Id, N - 1) - J*0.5*ITensor(sites.op("S-", N))*makeOtherIndicesIdentity1(Id, N - 1);
-*/
+
 printfln("Calculating energy");
 printfln("\nGround state energy by TEBD = %.25f", getEnergy(mps));
-/*Real energy = (dag(prime(psi))*H*psi).real();
-printfln("\nGround state energy by TEBD= %.20f",energy);*/
 printfln("Ground state energy by dmrg = %.25f",dmrg_energy);
 }
