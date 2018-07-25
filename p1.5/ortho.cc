@@ -5,10 +5,10 @@
 using namespace itensor;
 //Only the orthogonality center needs to be normalized
 //Whichever term gets the D
-int N = 10;
-int steps = 1000;
-int maxm = 100;
-Real cutoff = 0.0;
+int N = 50;
+int steps = 100;
+int maxm = 5;
+Real cutoff = 1e-3;
 //Coupling constants
 float J = 1.0;
 float h = 1.0;
@@ -121,8 +121,9 @@ int main() {
 
 
     for (int st = 0; st < steps; st++) {
-        if (st % 100 == 0) {
+        if (st % steps/10 == 0) {
             Print(st);
+            printfln("Energy = %.10f", getEnergy(mps));
         }
         // Odd-even pairs (odd site first index)
         for (int i = 0; i < N - 1; i+=2) {
