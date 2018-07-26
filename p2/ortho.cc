@@ -191,29 +191,44 @@ int main() {
             mps[N-2] = mps[N-2]*U*D;
             mps[N-1] = V;
             mps[N-2] /= norm(mps[N-2]);
-        } else if (N % 3 == 2) {
-            ITensor U = ITensor(commonIndex(mps[N-2], mps[N-3]), sites(N-1));
+        } else if (N % 3 == 1) {
+            ITensor U;
             ITensor D, V;
-            svd(mps[N-2], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[N-2] = U;
-            mps[N-1] = D*V*mps[N-1];
-            mps[N-1] /= norm(mps[N-1]);
+
 
             ITensor h = J1*ITensor(sites.op("Sz", N - 1))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 2))
             + J1*ITensor(sites.op("Sx", N - 1))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 2))
             + J1*ITensor(sites.op("Sy", N - 1))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 2))
-            + J2*ITensor(sites.op("Sz", N - 2))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 3))
-            + J2*ITensor(sites.op("Sx", N - 2))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 3))
-            + J2*ITensor(sites.op("Sy", N - 2))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 3));
+            + J2*ITensor(sites.op("Sz", N - 2))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 1))
+            + J2*ITensor(sites.op("Sx", N - 2))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 1))
+            + J2*ITensor(sites.op("Sy", N - 2))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 1));
 
             auto expTemp = expHermitian(h, -T);
             ITensor p = mps[N-1]*mps[N-2]*mps[N-3];
             p = expTemp*p;
             p = p.noprime();
-
-
+            U = ITensor(commonIndex(mps[N-3], mps[N-4]), sites(N-2));
+            svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+            mps[N-3] = U;
+            ITensor temp = D*V;
+            U = ITensor(commonIndex(mps[N-2], mps[N-3]), sites(N-1));
+            svd(temp, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+            mps[N-1] = V;
+            temp = U*D;
+            U = ITensor(commonIndex(mps[N-2], mps[N-3]), sites(N-1));
+            svd(temp, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+            mps[N-2] = V;
+            mps[N-3] = mps[N-3]*U*D;
+            mps[N-3] /= norm(mps[N-3]);
+        } else {
+            ITensor h = J1*ITensor(sites.op("Sz", N - 1))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
+            + J1*ITensor(sites.op("Sx", N - 1))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
+            + J1*ITensor(sites.op("Sy", N - 1))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
+            + J2*ITensor(sites.op("Sz", N - 2))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 3))*ITensor(sites.op("Id", N - 2))
+            + J2*ITensor(sites.op("Sx", N - 2))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 3))
+            + J2*ITensor(sites.op("Sy", N - 2))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 3))*ITensor(sites.op("Id", N - 2));
         }
-        
+
         //Backward
         int start = (N % 2 == 0) ? N-2 : N-1;
         for (int i = start; i > 1; i-=2) {
