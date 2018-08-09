@@ -5,9 +5,9 @@
 using namespace itensor;
 //Only the orthogonality center needs to be normalized
 //Whichever term gets the D
-int N = 15;
-int steps = 1000;
-int maxm = 100;
+int N = 10;
+int steps = 10;
+int maxm = 20;
 Real cutoff = 0.0;
 //Coupling constants
 float J1 = -1.0;
@@ -33,29 +33,25 @@ Real getEnergy(std::vector<ITensor> mps) {
       H = J1*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*ITensor(sites.op("Id", i + 3))
       + J1*ITensor(sites.op("Sx", i + 1))*ITensor(sites.op("Sx", i + 2))*ITensor(sites.op("Id", i + 3))
       + J1*ITensor(sites.op("Sy", i + 1))*ITensor(sites.op("Sy", i + 2))*ITensor(sites.op("Id", i + 3))
-      +J2*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 3))*ITensor(sites.op("Id", i + 2))
+      + J2*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 3))*ITensor(sites.op("Id", i + 2))
       + J2*ITensor(sites.op("Sx", i + 1))*ITensor(sites.op("Sx", i + 3))*ITensor(sites.op("Id", i + 2))
       + J2*ITensor(sites.op("Sy", i + 1))*ITensor(sites.op("Sy", i + 3))*ITensor(sites.op("Id", i + 2));
       ITensor psi = prime(prime(prime(mps[i]*mps[i+1]*mps[i+2], sites(i+1)), sites(i+2)), sites(i + 3));
-      Real e = (dag(psi)*H*mps[i]*mps[i+1]*mps[i+3]).real();
+      Real e = (dag(psi)*H*mps[i]*mps[i+1]*mps[i+2]).real();
       energy += e;
       if (i == 0) {
           U = ITensor(sites(i + 1));
       } else {
           U = ITensor(sites(i + 1), commonIndex(mps[i], mps[i-1]));
       }
-      svd(mps[i]*mps[i+1], U, D, V);
+      svd(mps[i], U, D, V);
       mps[i] = U;
-      psi =  D*V;
-      U = ITensor(sites(i+2), commonIndex(mps[i], psi));
-      svd(psi, U, D, V);
-      mps[i+1] = U;
-      mps[i+2] = D*V;
+      mps[i+1] =  D*V*mps[i+1];
   }
-  H = J1*ITensor(sites.op("Sz", N))*ITensor(sites.op("Sz", N + 1))
-  + J1*ITensor(sites.op("Sx", N))*ITensor(sites.op("Sx", N + 1))
-  + J1*ITensor(sites.op("Sy", N))*ITensor(sites.op("Sy", N + 1));
-  energy += (dag(prime(prime(mps[N-1]*mps[N-3], sites(N)), sites(N+1)))*H*mps[N-1]*mps[N-2]).real();
+  H = J1*ITensor(sites.op("Sz", N))*ITensor(sites.op("Sz", N - 1))
+  + J1*ITensor(sites.op("Sx", N))*ITensor(sites.op("Sx", N - 1))
+  + J1*ITensor(sites.op("Sy", N))*ITensor(sites.op("Sy", N - 1));
+  energy += (dag(prime(prime(mps[N-1]*mps[N-2], sites(N)), sites(N-1)))*H*mps[N-1]*mps[N-2]).real();
   return energy;
 }
 
@@ -126,25 +122,20 @@ int main() {
         mps[i - 1] /= norm(mps[i - 1]);
     }
     printfln("TEBD:");
-    float progress = 0.0;
-    int barWidth = 70;
-
-
     for (int st = 0; st < steps; st++) {
         if (st % 100 == 0) {
             Print(st);
         }
+
         // Forward
-        for (int i = 0; i < N - 2; i+=3) {
+
+        for (int i = 0; i < N - 2; i+=1) {
         	ITensor h = J1*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 2))*ITensor(sites.op("Id", i + 3))
             + J1*ITensor(sites.op("Sx", i + 1))*ITensor(sites.op("Sx", i + 2))*ITensor(sites.op("Id", i + 3))
             + J1*ITensor(sites.op("Sy", i + 1))*ITensor(sites.op("Sy", i + 2))*ITensor(sites.op("Id", i + 3))
             + J2*ITensor(sites.op("Sz", i + 1))*ITensor(sites.op("Sz", i + 3))*ITensor(sites.op("Id", i + 2))
             + J2*ITensor(sites.op("Sx", i + 1))*ITensor(sites.op("Sx", i + 3))*ITensor(sites.op("Id", i + 2))
-            + J2*ITensor(sites.op("Sy", i + 1))*ITensor(sites.op("Sy", i + 3))*ITensor(sites.op("Id", i + 2))
-            + J1*ITensor(sites.op("Sz", i + 2))*ITensor(sites.op("Sz", i + 3))*ITensor(sites.op("Id", i))
-            + J1*ITensor(sites.op("Sx", i + 2))*ITensor(sites.op("Sx", i + 3))*ITensor(sites.op("Id", i))
-            + J1*ITensor(sites.op("Sy", i + 2))*ITensor(sites.op("Sy", i + 3))*ITensor(sites.op("Id", i));
+            + J2*ITensor(sites.op("Sy", i + 1))*ITensor(sites.op("Sy", i + 3))*ITensor(sites.op("Id", i + 2));
         	auto expTemp = expHermitian(h, -T);
         	//the mps should already have its orthocenter at i
         	auto p1 = mps[i];
@@ -167,96 +158,39 @@ int main() {
             // mps[i] /= norm(mps[i]);
             ITensor temp = D*V;
             U = ITensor(sites(i + 2), commonIndex(mps[i], temp));
-            svd(temp, U, D, V);
+            svd(temp, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i + 1] = U;
             mps[i + 2] = D*V;
             mps[i + 2] /= norm(mps[i + 2]);
-            //Set the orthocenter to be the next i value
-            if (i < N - 3) {
-                ITensor D, V;
-                U = ITensor(sites(i + 3), commonIndex(mps[i+2], mps[i + 1]));
-                svd(mps[i+2], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-                mps[i + 2] = U;
-                // mps[i + 1] /= norm(mps[i + 1]);
-                mps[i + 3] = D*V*mps[i + 3];
-                mps[i + 3] /= norm(mps[i + 3]);
-            }
-        }
-        //Case 1: no tail terms
-        int start = N - 1;
-        if (N % 3 == 0) {
-            ITensor U = ITensor(commonIndex(mps[N-1], mps[N-2]));
-            ITensor D, V;
-            svd(mps[N-1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[N-2] = mps[N-2]*U*D;
-            mps[N-1] = V;
-            mps[N-2] /= norm(mps[N-2]);
-        } else if (N % 3 == 1) {
-            ITensor U;
-            ITensor D, V;
-
-
-            ITensor h = J1*ITensor(sites.op("Sz", N - 1))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 2))
-            + J1*ITensor(sites.op("Sx", N - 1))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 2))
-            + J1*ITensor(sites.op("Sy", N - 1))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 2))
-            + J2*ITensor(sites.op("Sz", N - 2))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 1))
-            + J2*ITensor(sites.op("Sx", N - 2))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 1))
-            + J2*ITensor(sites.op("Sy", N - 2))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 1));
-
-            auto expTemp = expHermitian(h, -T);
-            ITensor p = mps[N-1]*mps[N-2]*mps[N-3];
-            p = expTemp*p;
-            p = p.noprime();
-            U = ITensor(commonIndex(mps[N-3], mps[N-4]), sites(N-2));
-            svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[N-3] = U;
-            ITensor temp = D*V;
-            U = ITensor(commonIndex(mps[N-2], mps[N-3]), sites(N-1));
-            svd(temp, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[N-1] = V;
-            temp = U*D;
-            U = ITensor(commonIndex(mps[N-2], mps[N-3]), sites(N-1));
-            svd(temp, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[N-2] = V;
-            mps[N-3] = mps[N-3]*U*D;
-            mps[N-3] /= norm(mps[N-3]);
-        } else {
-            ITensor h = J1*ITensor(sites.op("Sz", N - 1))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
-            + J1*ITensor(sites.op("Sx", N - 1))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
-            + J1*ITensor(sites.op("Sy", N - 1))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 2))*ITensor(sites.op("Id", N - 3))
-            + J2*ITensor(sites.op("Sz", N - 2))*ITensor(sites.op("Sz", N))*ITensor(sites.op("Id", N - 3))*ITensor(sites.op("Id", N - 2))
-            + J2*ITensor(sites.op("Sx", N - 2))*ITensor(sites.op("Sx", N))*ITensor(sites.op("Id", N - 3))
-            + J2*ITensor(sites.op("Sy", N - 2))*ITensor(sites.op("Sy", N))*ITensor(sites.op("Id", N - 3))*ITensor(sites.op("Id", N - 2));
         }
 
-        //Backward
-        int start = (N % 2 == 0) ? N-2 : N-1;
-        for (int i = start; i > 1; i-=2) {
-        	ITensor hOdd = -h*ITensor(sites.op("Sz", i))*ITensor(sites.op("Sz", i + 1))
-        	- J*0.5*ITensor(sites.op("S+", i))*ITensor(sites.op("Id", i + 1))
-        	- J*0.5*ITensor(sites.op("S-", i))*ITensor(sites.op("Id", i + 1));
-        	auto expTemp = expHermitian(hOdd, -T);
-        	//the mps should already have its orthocenter at i
-        	auto p1 = mps[i - 1];
-        	auto p2 =mps[i];
-        	auto p = p1*p2;
-        	p = expTemp*p;
-        	//p /= norm(p);
-        	p = p.noprime();
-        	ITensor D, V, U(sites(i), commonIndex(mps[i-1], mps[i-2]));//, commonIndex(mps[i], mps[i-1]));//virtualIndices[i - 1]);
-        	svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+        //Last 2 terms
+        ITensor h = J1*ITensor(sites.op("Sz", N - 1))*ITensor(sites.op("Sz", N))
+        + J1*ITensor(sites.op("Sx", N - 1))*ITensor(sites.op("Sx", N))
+        + J1*ITensor(sites.op("Sy", N - 1))*ITensor(sites.op("Sy", N));
+        auto expTemp = expHermitian(h, -T);
+        //the mps should already have its orthocenter at i
+        auto p1 = mps[N - 1];
+        auto p2 = mps[N - 2];
+        auto p = expTemp*p1*p2;
+        //auto p = p1*p2;
+        p = p.noprime();
+        ITensor U = ITensor(sites(N - 1), commonIndex(mps[N - 2], mps[N - 3]));
+        ITensor D, V;
+        svd(p, U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
+        mps[N - 1] = D*V;
+        mps[N - 2] = U;
+        mps[N - 1] /= norm(mps[N - 1]);
+
+        //Take back orthocenter
+
+        for (int i = N - 1; i > 0; i-=1) {
+            ITensor U = ITensor(commonIndex(mps[i - 1], mps[i]));
+            ITensor D, V;
+            svd(mps[i], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
             mps[i] = V;
-            //mps[i] /= norm(mps[i]);
-            mps[i - 1] = U*D;
+            mps[i - 1] = mps[i - 1]*U*D;
             mps[i - 1] /= norm(mps[i - 1]);
-            //TO DO: How to keep it normalized?
-            //Set the orthocenter to be the next i value
-            U = ITensor(commonIndex(mps[i-1], mps[i - 2]));//virtualIndices[i - 2]);
-            svd(mps[i - 1], U, D, V, {"Cutoff", cutoff, "Maxm", maxm});
-            mps[i - 2] = mps[i - 2]*U*D;
-            mps[i - 2] /= norm(mps[i - 2]);
-            mps[i - 1] = V;
-            //mps[i - 1] /= norm(mps[i - 1]);
         }
         //orthogonality center is now the first index (index0, site1)
     }
