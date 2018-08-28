@@ -5,14 +5,14 @@
 using namespace itensor;
 //Only the orthogonality center needs to be normalized
 //Whichever term gets the D
-int N = 10;
-int steps = 10;
+int N = 20;
+int steps = 100;
 int maxm = 20;
 Real cutoff = 0.0;
 //Coupling constants
 float J1 = -1.0;
 float J2 = 0.0;
-Real T = 0.01;
+Real T = 0.1;
 SiteSet sites = SpinHalf(N);
 
 void normalizeCheck(std::vector<ITensor> mps, int N) {
