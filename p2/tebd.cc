@@ -5,7 +5,7 @@
 using namespace itensor;
 //Only the orthogonality center needs to be normalized
 //Whichever term gets the D
-int N = 20;
+int N = 19;
 int steps = 100;
 int maxm = 20;
 Real cutoff = 0.0;
